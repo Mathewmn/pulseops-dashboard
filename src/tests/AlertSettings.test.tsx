@@ -1,0 +1,22 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { expect, it } from 'vitest';
+import { AlertSettings } from '../features/telemetry/components/AlertSettings';
+import { saveAlertConfig, defaultAlert } from '../features/telemetry/api/alertConfigApi';
+it('saves a setting and rolls back a failed update', async () => {
+  await saveAlertConfig(defaultAlert);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<QueryClientProvider client={client}><AlertSettings /></QueryClientProvider>);
+  const button = screen.getByRole('button', { name: 'Save threshold' });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.change(screen.getByLabelText('Latency threshold (ms)'), { target: { value: '250' } });
+  fireEvent.click(button);
+  await screen.findByText('Threshold saved in demo memory.');
+  expect(screen.getByText('Active threshold: 250 ms')).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Simulate save failure'));
+  fireEvent.change(screen.getByLabelText('Latency threshold (ms)'), { target: { value: '500' } });
+  fireEvent.click(button);
+  await screen.findByRole('alert');
+  await waitFor(() => expect(screen.getByText('Active threshold: 250 ms')).toBeInTheDocument());
+  client.clear();
+});
